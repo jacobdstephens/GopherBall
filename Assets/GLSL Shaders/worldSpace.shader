@@ -84,13 +84,19 @@
 		{
 			vec3 up = normalize(cross(cross(p, vec3(0,1,0)), p));
 			vec3 newp = up+p;
-			float base = distance(position_in_world_space.xyz, vec3(.0,1.,.0))*1.5;
+			vec4 camSpaceOrigin = normalize(UNITY_MATRIX_V * vec4( .0,.0,.0, 1.0));
+			vec4 camSpacePos = normalize(UNITY_MATRIX_V * position_in_world_space);
+			
+			float base = -distance(camSpaceOrigin.xyz,camSpacePos.xyz)*1.0;//position_in_world_space.y; //distance(position_in_world_space.xyz, vec3(.0,1.,.0))*1.5;
 			float height = Noise(p.xz*2.0)*.75 + Noise(p.xz)*.35 + Noise(p.xz*.5)*.2;
 			
 			//p.y += height;
 
 			float y = p.y - base -height;
 			y = y*y;
+			
+			float z = p.z - base -height;
+			z = z*z;
 
 			vec2 ret = Voronoi((p.xz*2.5+sin(y*4.0+p.zx*12.3)*.12+vec2(sin(_Time[1]*2.3+1.5*p.z),sin(_Time[1]*3.6+1.5*p.x))*y*.5));
 			float f = ret.x * .6 + y * .58;
@@ -128,9 +134,13 @@
 				
 				vec3 p = rO + rD * d;
 				//vec3 p = position_in_world_space.xyz;
+				vec4 camSpacePos = UNITY_MATRIX_V * position_in_world_space;
+				
 				//vec3 up = normalize(cross(cross(p, vec3(0,0,1)), p));
 				
 				vec3 ret = DE(p);
+				//vec3 ret = DE(camSpacePos.xyz * d);
+				
 				//ret = normalize(cross(cross(ret, vec3(0,-1,0)), ret));
 				ret.x += .5 * rCoC;
 
@@ -171,14 +181,14 @@
             vec4 objSpace = position_in_world_space * worldlMatrix;
             vec4 objSpaceCam = vec4(_WorldSpaceCameraPos,1.0) * worldlMatrix;
             
-            //vec3 dir = normalize( camSpacePos.xyz-camSpace.xyz);
-            vec3 dir = normalize( position_in_world_space.xyz+_WorldSpaceCameraPos);
+            vec3 dir = normalize( camSpacePos.xyz-camSpace.xyz);
+            //vec3 dir = normalize( position_in_world_space.xyz+_WorldSpaceCameraPos);
             //vec3 up = cross(cross(position_in_world_space.xyz, vec3(0,1,0)), position_in_world_space.xyz);
             vec3 mat = mix(vec3(.0,.3,.0), vec3(.2,.3,.0), Noise(position_in_world_space.xy*.025));
             float dist;
             
             
-            vec4 col = GrassBlades( position_in_world_space.xyz, dir , mat, dist);
+            vec4 col = GrassBlades( camSpace.xyz, dir , mat, dist);
             
  
 			gl_FragColor = col;
