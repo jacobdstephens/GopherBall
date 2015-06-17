@@ -1,0 +1,13 @@
+fileFormatVersion: 2
+guid: d2c7e489d1d1f47249711dfded62d57f
+timeCreated: 1434484004
+licenseType: Free
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences:
+  - gopherRig: {fileID: 136982, guid: e86ac92b5412144b89250ebb5f10fb74, type: 2}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
