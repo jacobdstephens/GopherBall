@@ -14,6 +14,8 @@
         uniform vec4 unity_Scale;
         uniform mat4 UNITY_MATRIX_IT_MV;
         uniform mat4 UNITY_MATRIX_V;
+        uniform mat4 UNITY_MATRIX_VP;
+        uniform mat4 UNITY_MATRIX_P;
         
             
 		//uniform vec3 _WorldSpaceCameraPos;
@@ -21,6 +23,7 @@
 
  		 
          varying vec4 position_in_world_space;
+         varying vec4 position;
          
  
          #ifdef VERTEX
@@ -31,7 +34,7 @@
             mat4 worldlMatrix = _World2Object;
             
  			position_in_world_space = modelMatrix * gl_Vertex;
- 			
+ 			position = gl_ModelViewProjectionMatrix * gl_Vertex;
  
             gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex; 
          }
@@ -41,6 +44,16 @@
          #ifdef FRAGMENT
          
          #define MOD2 vec2(.16632,.17369)
+         
+         //Convert camera and Point Position to Camera Space
+         vec4 camSpacePos = UNITY_MATRIX_V * position_in_world_space;
+         vec4 look = UNITY_MATRIX_V * vec4(.0,.0,.0,1.0);
+         vec4 camSpace = UNITY_MATRIX_V * vec4(_WorldSpaceCameraPos,1.0);
+         
+         float sdSphere( vec3 p, float s )
+		{
+    		return length(p) -s;
+		}
          
 		float Hash(vec2 p)
 		{
@@ -79,38 +92,47 @@
    		 }
 			return vec2(max(.4-sqrt(res), 0.0),id);
 		}
-         
+		
+		
+       //Raymarching   
 		vec3 DE(vec3 p)
 		{
-			vec3 up = normalize(cross(cross(p, vec3(0,1,0)), p));
-			vec3 newp = up+p;
-			vec4 camSpaceOrigin = normalize(UNITY_MATRIX_V * vec4( .0,.0,.0, 1.0));
-			vec4 camSpacePos = normalize(UNITY_MATRIX_V * position_in_world_space);
+			//Signed Distance Sphere
 			
-			float base = -distance(camSpaceOrigin.xyz,camSpacePos.xyz)*1.0;//position_in_world_space.y; //distance(position_in_world_space.xyz, vec3(.0,1.,.0))*1.5;
-			float height = Noise(p.xz*2.0)*.75 + Noise(p.xz)*.35 + Noise(p.xz*.5)*.2;
+			//float radius = distance(p.xyz,origin.xyz);
+			float sdSphere1 = sdSphere(vec3(.0,.0,.0),1.);
 			
-			//p.y += height;
+			vec3 up = cross(p,vec3(.0,-1.0,.0));
 
-			float y = p.y - base -height;
+			
+			float y = .3;//sdSphere1;//distance(p.xyz,rayOrigin.xyz)*1.;// - base -height;
 			y = y*y;
 			
-			float z = p.z - base -height;
-			z = z*z;
-
-			vec2 ret = Voronoi((p.xz*2.5+sin(y*4.0+p.zx*12.3)*.12+vec2(sin(_Time[1]*2.3+1.5*p.z),sin(_Time[1]*3.6+1.5*p.x))*y*.5));
+			//float z = p.z - base -height;
+			//z = z*z;
+			//y = z;
+			
+			//Pass in a 2D vector to compute the Voronoi plane
+			vec2 ret = Voronoi(p.xz);
+			//vec2 ret = Voronoi(vec2(0.0,1.0));
+			//vec2 ret = Voronoi((p.xy*2.5+sin(y*4.0+p.yx*12.3)*.12+vec2(sin(_Time[1]*2.3+1.5*p.y),sin(_Time[1]*3.6+1.5*p.x))*y*.5));
+			
+			//Ret X is the height of the peaks and Y is the midline
+			//float f = ret.x;
 			float f = ret.x * .6 + y * .58;
-			return vec3( y - f*1.4, clamp(f * 1.5, 0.0, 1.0), ret.y);
+
+			//return vec3(y,.0,.0);
+			return vec3( y - f * 1.4, clamp(f * 1.5, 0.0, 1.0), ret.y);
 		} 
 		
-		                
+		//Circle of Confusion fall off              
 		float CircleOfConfusion(float t)
 		{
 		return max(t * .04, (2.0 / _ScreenParams.y) * (1.0+t));
 		}
 		
 		
-		
+		// Linear Step function
 		float Linstep(float a, float b, float t)
 		{
 			return clamp((t-a)/(b-a),0.,1.);
@@ -132,16 +154,14 @@
 			{
 				if (col.w > .99) break;
 				
+				//Find Point on surface
 				vec3 p = rO + rD * d;
-				//vec3 p = position_in_world_space.xyz;
-				vec4 camSpacePos = UNITY_MATRIX_V * position_in_world_space;
+				//vec3 p = position_in_world_space.xyz * d;
 				
-				//vec3 up = normalize(cross(cross(p, vec3(0,0,1)), p));
 				
+				//Get vector from the ray marching
 				vec3 ret = DE(p);
-				//vec3 ret = DE(camSpacePos.xyz * d);
 				
-				//ret = normalize(cross(cross(ret, vec3(0,-1,0)), ret));
 				ret.x += .5 * rCoC;
 
 				if (ret.x < rCoC)
@@ -152,7 +172,7 @@
 					vec3 gra = mix(mat, vec3(.2, .3, min(pow(ret.z, 2.0)*3.0, .2)), pow(ret.y,20.0)*.6) * ret.y;
 					col += vec4(gra * alpha, alpha);
 				}
-				d += max(ret.x * .7, .02);
+				d += max(ret.x * .7, .2);
 			}
 			if(col.w < .2)col.xyzw = vec4(.1, .15, .05,.0);
 			return col.xyzw;
@@ -163,37 +183,32 @@
  
          void main()
          {
-         	mat4 worldlMatrix = _World2Object;
-         	
-         	//mat4 modelMatrixInverse = _World2Object * unity_Scale.w;
- 			
-      		//modelMatrixInverse[3][3] = 1.0; 
-      		
-      		//mat4 viewMatrix = gl_ModelViewMatrix * modelMatrixInverse;
-      		
-      		
-            //float dir= distance(position_in_world_space, vec4(_WorldSpaceCameraPos,1.0));
-            vec4 camSpacePos = UNITY_MATRIX_V * position_in_world_space;
-            vec4 camSpace = UNITY_MATRIX_V * vec4(_WorldSpaceCameraPos,1.0);
+
             
-            vec3 testDir = normalize(UNITY_MATRIX_IT_MV[2].xyz);
-            
-            vec4 objSpace = position_in_world_space * worldlMatrix;
-            vec4 objSpaceCam = vec4(_WorldSpaceCameraPos,1.0) * worldlMatrix;
-            
-            vec3 dir = normalize( camSpacePos.xyz-camSpace.xyz);
-            //vec3 dir = normalize( position_in_world_space.xyz+_WorldSpaceCameraPos);
-            //vec3 up = cross(cross(position_in_world_space.xyz, vec3(0,1,0)), position_in_world_space.xyz);
+            //Get Camera Direction
+            vec3 dir = normalize(position_in_world_space.xyz-_WorldSpaceCameraPos.xyz);
+            //vec3 dir = normalize(position_in_world_space.xyz-camSpace.xyz);
+            vec4 rayOrigin = UNITY_MATRIX_IT_MV * vec4(position_in_world_space.xyz,1.0);
+            //vec3 eye = _WorldSpaceCameraPos;
+            vec4 rayDirection = UNITY_MATRIX_V * vec4(_WorldSpaceCameraPos.xyz,1.0);
+            //Create default material
             vec3 mat = mix(vec3(.0,.3,.0), vec3(.2,.3,.0), Noise(position_in_world_space.xy*.025));
+            
+            
+            //Create Distance Float
             float dist;
             
+            //Render Grass 
+            vec3 norm = cross(cross(rayDirection.xyz,vec3(.0,1.0,.0)), rayDirection.xyz);
+            //rayDirection.xyz = reflect(rayDirection.xyz,vec3(1.0,.0,.0));
+            //rayOrigin.xyz = cross(cross(rayOrigin.xyz,vec3(.0,-1.0,.0)), rayOrigin.xyz);
+            //eye.xyz = reflect(eye.xyz,norm);
+            //viewDir.xyz = cross(cross(viewDir.xyz,vec3(1.0,.0,.0)), viewDir.xyz);
             
-            vec4 col = GrassBlades( camSpace.xyz, dir , mat, dist);
-            
- 
+            vec4 col = GrassBlades( position_in_world_space.xyz, rayOrigin.xyz , mat, dist);
+
 			gl_FragColor = col;
             
-
          }
  
          #endif
