@@ -11,6 +11,7 @@
 		
 		#include "UnityCG.glslinc" 
 		#define PI 3.14159265
+		#define MOD2 vec2(3.07965, 7.4235)
 		
 		//----------Script Set up-----------//
 		
@@ -29,6 +30,13 @@
         varying vec4 modelSpacePointPosition;
         
         varying vec4 positionInProjSpace; 
+        		
+		//float PI  = 4.0*atan(1.0);
+		vec3 sunLight  = normalize( vec3(  0.35, 0.2,  0.3 ) );
+		vec3 cameraPos;
+		vec3 sunColour = vec3(1.0, .75, .6);
+		const mat2 rotate2D = mat2(1.932, 1.623, -1.623, 1.952);
+		float gTime = 0.0;
         
 		float orenNayarDiffuse(
 		  vec3 lightDirection,
@@ -91,9 +99,216 @@
 		//Create Map
 		vec2 map ( in vec3 position )
 		{
-			vec2 res = vec2 ( signedDistanceSphere ( position - vec3(0.0,0.0,0.0), 5.0 ), 46.9 );
+			vec2 res = vec2 ( signedDistanceSphere ( position - vec3(0.0,0.0,0.0), 6.0 ), 46.9 );
 	        return res;
 		}
+		
+		
+
+
+		//--------------------------------------------------------------------------
+		// Noise functions...
+		float Hash( float p )
+		{
+			vec2 p2 = fract(vec2(p) / MOD2);
+		    p2 += dot(p2.yx, p2.xy+19.19);
+			return fract(p2.x * p2.y);
+		}
+
+		//--------------------------------------------------------------------------
+		float Hash(vec2 p)
+		{
+			p  = fract(p / MOD2);
+		    p += dot(p.xy, p.yx+19.19);
+		    return fract(p.x * p.y);
+		}
+
+
+		//--------------------------------------------------------------------------
+		float Noise( in vec2 x )
+		{
+		    vec2 p = floor(x);
+		    vec2 f = fract(x);
+		    f = f*f*(3.0-2.0*f);
+		    float n = p.x + p.y*57.0;
+		    float res = mix(mix( Hash(n+  0.0), Hash(n+  1.0),f.x),
+		                    mix( Hash(n+ 57.0), Hash(n+ 58.0),f.x),f.y);
+		    return res;
+		}
+
+		vec2 Voronoi( in vec2 x )
+		{
+			vec2 p = floor( x );
+			vec2 f = fract( x );
+			float res=100.0,id;
+			for( int j=-1; j<=1; j++ )
+			for( int i=-1; i<=1; i++ )
+			{
+				vec2 b = vec2( float(i), float(j) );
+				vec2 r = vec2( b ) - f  + Hash( p + b );
+				float d = dot(r,r);
+				if( d < res )
+				{
+					res = d;
+					id  = Hash(p+b);
+				}			
+		    }
+			return vec2(max(.4-sqrt(res), 0.0),id);
+		}
+
+
+		//--------------------------------------------------------------------------
+		vec2 Terrain( in vec2 p)
+		{
+			float type = 0.0;
+			vec2 pos = p*0.003;
+			float w = 50.0;
+			float f = .0;
+			for (int i = 0; i < 3; i++)
+			{
+				f += Noise(pos) * w;
+				w = w * 0.62;
+				pos *= 2.5;
+			}
+	        
+
+			return vec2(f, type);
+		}
+
+		//--------------------------------------------------------------------------
+		vec2 Map(in vec3 p)
+		{
+			vec2 h = Terrain(p.xz);
+		    return vec2(p.y - h.x, h.y);
+		}
+
+		//--------------------------------------------------------------------------
+		float FractalNoise(in vec2 xy)
+		{
+			float w = .7;
+			float f = 0.0;
+
+			for (int i = 0; i < 3; i++)
+			{
+				f += Noise(xy) * w;
+				w = w*0.6;
+				xy = 2.0 * xy;
+			}
+			return f;
+		}
+
+		//--------------------------------------------------------------------------
+		// Grab all sky information for a given ray from camera
+		vec3 GetSky(in vec3 rd)
+		{
+			float sunAmount = max( dot( rd, sunLight), 0.0 );
+			float v = pow(1.0-max(rd.y,0.0),6.);
+			vec3  sky = mix(vec3(.1, .2, .3), vec3(.32, .32, .32), v);
+			sky = sky + sunColour * sunAmount * sunAmount * .25;
+			sky = sky + sunColour * min(pow(sunAmount, 800.0)*1.5, .3);
+			return clamp(sky, 0.0, 1.0);
+		}
+
+		//--------------------------------------------------------------------------
+		// Merge grass into the sky background for correct fog colouring...
+		vec3 ApplyFog( in vec3  rgb, in float dis, in vec3 dir)
+		{
+			float fogAmount = clamp(dis*dis* 0.0000012, 0.0, 1.0);
+			return mix( rgb, GetSky(dir), fogAmount );
+		}
+
+		//--------------------------------------------------------------------------
+		vec3 DE(in vec3 p, in vec3 normal, in vec2 camPlane)
+		{
+			vec4 camNorm = UNITY_MATRIX_IT_MV * vec4(0.0,0.0,0.0,1.0);
+			p = normal - p;
+			float base = signedDistanceSphere ( p - vec3(0.0,0.0,0.0), 3.0 )*1.5;
+			
+			float height = Noise(p.xz*2.0)*.75 + Noise(p.xz)*.35 + Noise(p.xz*.5)*.2;
+			//p.y += height;
+			float y = base;
+			y = y*y;
+			//TODO create vec2 that represents the camera plane
+			
+			
+			vec2 ret = Voronoi((p.xy*2.5+sin(y*4.0+p.yx*12.3)*.12+vec2(sin(_Time[0]*2.3+1.5*p.y),sin(_Time[0]*3.6+1.5*p.x))*y*.5));
+			float f = ret.x * .6 + y * .58;
+			return vec3( y - f*1.4, ret.y,clamp(f * 1.5, 0.0, 1.0));
+		}
+
+		//--------------------------------------------------------------------------
+		// eiffie's code for calculating the aperture size for a given distance...
+		float CircleOfConfusion(float t)
+		{
+			return max(t * .04, (2.0 / _ScreenParams.y) * (1.0+t));
+		}
+
+		//--------------------------------------------------------------------------
+		float Linstep(float a, float b, float t)
+		{
+			return clamp((t-a)/(b-a),0.,1.);
+		}
+
+		//--------------------------------------------------------------------------
+		vec3 GrassBlades(in vec3 rO, in vec3 rD, in vec3 mat, in float dist , in vec3 normal, in vec2 camPlane)
+		{
+			float d = 0.0;
+			// Only calculate cCoC once is enough here...
+			float rCoC = CircleOfConfusion(dist*.3);
+			float alpha = 0.0;
+			
+			vec4 col = vec4(mat*0.15, 0.0);
+
+			for (int i = 0; i < 20; i++)
+			{
+				if (col.w > .99) break;
+				vec3 p = rO + rD * d;
+				
+				vec3 ret = DE(p, normal, camPlane);
+				ret.x += .5 * rCoC;
+
+				if (ret.x < rCoC)
+				{
+					alpha = (1.0 - col.y) * Linstep(-rCoC, rCoC, -ret.x);//calculate the mix like cloud density
+					// Mix material with white tips for grass...
+					vec3 gra = mix(mat, vec3(.35, .35, min(pow(ret.z, 4.0)*35.0, .35)), pow(ret.y, 9.0)*.7) * ret.y;
+					col += vec4(gra * alpha, alpha);
+				}
+				d += max(ret.x * .7, .1);
+			}
+			if(col.w < .2)
+				col.xyz = vec3(0.1, .15, 0.05);
+			return col.xyz;
+		}
+
+		//--------------------------------------------------------------------------
+		// Calculate sun light...
+		void DoLighting(inout vec3 mat, in vec3 pos, in vec3 normal, in vec3 eyeDir, in float dis)
+		{
+			float h = dot(sunLight,normal);
+			mat = mat * sunColour*(max(h, 0.0)+.2);
+		}
+
+		//--------------------------------------------------------------------------
+		vec3 TerrainColour(vec3 pos, vec3 dir,  vec3 normal, float dis, in vec2 camPlane,float type)
+		{
+			vec3 mat;
+			if (type == 0.0)
+			{
+				// Random colour...
+				mat = mix(vec3(.0,.3,.0), vec3(.2,.3,.0), Noise(pos.xz*.025));
+				// Random shadows...
+				float t = FractalNoise(pos.xz * .1)+.5;
+				// Do grass blade tracing...
+				mat = GrassBlades(pos, dir, mat, dis, normal, camPlane) * t;
+				DoLighting(mat, pos, normal,dir, dis);
+			}
+			mat = ApplyFog(mat, dis, dir);
+			return mat;
+		}
+		
+		
+		
 		//Build Model in Screen Space
 		float doModel ( in vec3 position )
 		{
@@ -269,20 +484,26 @@
 		}
 
 		
-		vec3 render( in vec3 ro, in vec3 rd )
+		vec3 render( in vec3 ro, in vec3 rd, in vec2 camPlane )
 		{ 
     		vec3 col = vec3(0.8, 0.9, 1.0);
+    		vec3 grass;
     		vec2 res = castRay(ro,rd);
     		float t = res.x;
 			float m = res.y;
+			float distance;
+			float type;
     		if( m>-0.5 )
     		{
         		vec3 pos = ro + t*rd;
         		vec3 nor = calcNormal( pos );
+        		
         		vec3 ref = reflect( rd, nor );
         
+        		grass = TerrainColour(ro, rd, nor, distance, camPlane, type);
+        		
         		// material        
-				col = 0.45 + 0.3*sin( vec3(0.05,0.08,0.10)*(m-1.0) );
+				//col = 0.45 + 0.3*sin( vec3(0.05,0.08,0.10)*(m-1.0) );
 		
         		if( m<1.5 )
         		{
@@ -318,7 +539,7 @@
 
     		}
 
-			return vec3( clamp(col,0.0,1.0) );
+			return vec3( clamp(grass,0.0,1.0) );
 		}
 		
 		
@@ -342,8 +563,8 @@
 		
 		void main()
 		{
-			vec2 p = -1.0 + 2.0 * gl_FragCoord.xy / _ScreenParams.xy;
-			p.x *= _ScreenParams.x/_ScreenParams.y;
+			vec2 camPlane = -1.0 + 2.0 * gl_FragCoord.xy / _ScreenParams.xy;
+			camPlane.x *= _ScreenParams.x/_ScreenParams.y;
 			
 			float lensDistance = gl_FragCoord.y * .5/tan(radians(60.0) * .5 );//60 is the FOV in Unity
 			
@@ -353,9 +574,10 @@
 			vec4 rayOrigin = worldSpacePointPosition ;
 			vec3 camTarget = _WorldSpaceCameraPos;
 			mat3 ca = setCamera( rayOrigin.xyz, camTarget.xyz, .0 );
-			vec3 rayDirection = ca * normalize(vec3(p.xy,-lensDistance) );//Flip Z Axis to project onto sphere
+			vec3 rayDirection = ca * normalize(vec3(camPlane.xy,-lensDistance) );//Flip Z Axis to project onto sphere
+			//vec3 surfaceNormal = calcNormal();
 			
-			vec3 col = render( rayOrigin.xyz, rayDirection.xyz );
+			vec3 col = render( rayOrigin.xyz, rayDirection.xyz, camPlane );
 
 			col = pow( col, vec3(0.4545) );
 
