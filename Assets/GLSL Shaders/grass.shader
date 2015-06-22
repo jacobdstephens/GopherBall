@@ -2,9 +2,14 @@
 {
 	Properties 
 	{
+		_Color ("Color", Color) = (1,1,1,1)
+		_X ("X", Range(-10,10)) = 0.0
+		_Y ("Y", Range(-10,10)) = 0.0
+		_Z ("Z", Range(-10,10)) = 0.0
 	}
 	SubShader 
 	{
+		Tags { "RenderType"="Transparent" }
 		Pass 
 		{
 		GLSLPROGRAM
@@ -21,6 +26,9 @@
 		uniform mat4 UNITY_MATRIX_V;
 		uniform mat4 UNITY_MATRIX_VP;
         uniform mat4 UNITY_MATRIX_P;
+        uniform float _X;
+        uniform float _Y;
+        uniform float _Z;
         
         uniform mat4 _Projector;
 		
@@ -38,48 +46,6 @@
 		const mat2 rotate2D = mat2(1.932, 1.623, -1.623, 1.952);
 		float gTime = 0.0;
         
-		float orenNayarDiffuse(
-		  vec3 lightDirection,
-		  vec3 viewDirection,
-		  vec3 surfaceNormal,
-		  float roughness,
-		  float albedo) {
-  
-		  float LdotV = dot(lightDirection, viewDirection);
-		  float NdotL = dot(lightDirection, surfaceNormal);
-		  float NdotV = dot(surfaceNormal, viewDirection);
-
-		  float s = LdotV - NdotL * NdotV;
-		  float t = mix(1.0, max(NdotL, NdotV), step(0.0, s));
-
-		  float sigma2 = roughness * roughness;
-		  float A = 1.0 + sigma2 * (albedo / (sigma2 + 0.13) + 0.5 / (sigma2 + 0.33));
-		  float B = 0.45 * sigma2 / (sigma2 + 0.09);
-
-		  return albedo * max(0.0, NdotL) * (A + B * s / t) / PI;
-		}
-
-		float gaussianSpecular(
-		  vec3 lightDirection,
-		  vec3 viewDirection,
-		  vec3 surfaceNormal,
-		  	float shininess) 
-		  	{
-		  		vec3 H = normalize(lightDirection + viewDirection);
-		  		float theta = acos(dot(H, surfaceNormal));
-		  		float w = theta / shininess;
-		  		return exp(-w*w);
-			}
-
-        float fogFactorExp2(
-		  const float dist,
-		  const float density
-		) {
-		  const float LOG2 = -1.442695;
-		  float d = density * dist;
-		  return 1.0 - clamp(exp2(d * d * LOG2), 0.0, 1.0);
-		}
-
         
 		//Signed Distance function to create a Plane
 		float signedDistancePlane( vec3 p )
@@ -99,7 +65,7 @@
 		//Create Map
 		vec2 map ( in vec3 position )
 		{
-			vec2 res = vec2 ( signedDistanceSphere ( position - vec3(0.0,0.0,0.0), 6.0 ), 46.9 );
+			vec2 res = vec2 ( signedDistanceSphere ( position - vec3(0.0,0.0,0.0), 7.25 ), 46.9 );
 	        return res;
 		}
 		
@@ -153,34 +119,10 @@
 					id  = Hash(p+b);
 				}			
 		    }
-			return vec2(max(.4-sqrt(res), 0.0),id);
+			return vec2(max(.4-sqrt(res), 0.01),id);
 		}
 
 
-		//--------------------------------------------------------------------------
-		vec2 Terrain( in vec2 p)
-		{
-			float type = 0.0;
-			vec2 pos = p*0.003;
-			float w = 50.0;
-			float f = .0;
-			for (int i = 0; i < 3; i++)
-			{
-				f += Noise(pos) * w;
-				w = w * 0.62;
-				pos *= 2.5;
-			}
-	        
-
-			return vec2(f, type);
-		}
-
-		//--------------------------------------------------------------------------
-		vec2 Map(in vec3 p)
-		{
-			vec2 h = Terrain(p.xz);
-		    return vec2(p.y - h.x, h.y);
-		}
 
 		//--------------------------------------------------------------------------
 		float FractalNoise(in vec2 xy)
@@ -206,6 +148,7 @@
 			vec3  sky = mix(vec3(.1, .2, .3), vec3(.32, .32, .32), v);
 			sky = sky + sunColour * sunAmount * sunAmount * .25;
 			sky = sky + sunColour * min(pow(sunAmount, 800.0)*1.5, .3);
+			//return vec4(0.0,0.0,0.0,1.0);
 			return clamp(sky, 0.0, 1.0);
 		}
 
@@ -218,22 +161,28 @@
 		}
 
 		//--------------------------------------------------------------------------
-		vec3 DE(in vec3 p, in vec3 normal, in vec2 camPlane)
+		vec3 DE(in vec3 p, in vec3 normal, in vec3 camSpaceP)
 		{
 			vec4 camNorm = UNITY_MATRIX_IT_MV * vec4(0.0,0.0,0.0,1.0);
-			p = normal - p;
-			float base = signedDistanceSphere ( p - vec3(0.0,0.0,0.0), 3.0 )*1.5;
+			vec3 test = vec3(_X,_Y,_Z);
+			//p = camSpaceP;//normal - p;
 			
-			float height = Noise(p.xz*2.0)*.75 + Noise(p.xz)*.35 + Noise(p.xz*.5)*.2;
+			//vec2 plane = p.xy;
+			vec3 plane =cross(cross( p, vec3(0.0,0.0,-1.0)), p )*1.0;
+			
+			float base = signedDistanceSphere ( p - vec3(0.0,0.0,0.0), 5.5 );
+			
+			float height = signedDistanceSphere ( p - vec3(0.0,0.0,0.0), 1.0 )*1.5;//Noise(p.xz*2.0)*.75 + Noise(p.xz)*.35 + Noise(p.xz*.5)*.2;
 			//p.y += height;
-			float y = base;
-			y = y*y;
+			float y =  base;
+			//y = y*y;
+			p.xy = p.xy + test.xy;
 			//TODO create vec2 that represents the camera plane
 			
 			
 			vec2 ret = Voronoi((p.xy*2.5+sin(y*4.0+p.yx*12.3)*.12+vec2(sin(_Time[0]*2.3+1.5*p.y),sin(_Time[0]*3.6+1.5*p.x))*y*.5));
 			float f = ret.x * .6 + y * .58;
-			return vec3( y - f*1.4, ret.y,clamp(f * 1.5, 0.0, 1.0));
+			return vec3( y - f*1.4, clamp(f * 1.5, 0.0, 1.0), ret.y);
 		}
 
 		//--------------------------------------------------------------------------
@@ -250,7 +199,7 @@
 		}
 
 		//--------------------------------------------------------------------------
-		vec3 GrassBlades(in vec3 rO, in vec3 rD, in vec3 mat, in float dist , in vec3 normal, in vec2 camPlane)
+		vec3 GrassBlades(in vec3 rO, in vec3 rD, in vec3 mat, in float dist , in vec3 normal, in vec3 camSpaceP)
 		{
 			float d = 0.0;
 			// Only calculate cCoC once is enough here...
@@ -259,12 +208,12 @@
 			
 			vec4 col = vec4(mat*0.15, 0.0);
 
-			for (int i = 0; i < 20; i++)
+			for (int i = 0; i < 90; i++)
 			{
 				if (col.w > .99) break;
 				vec3 p = rO + rD * d;
 				
-				vec3 ret = DE(p, normal, camPlane);
+				vec3 ret = DE(p, normal, camSpaceP);
 				ret.x += .5 * rCoC;
 
 				if (ret.x < rCoC)
@@ -274,10 +223,10 @@
 					vec3 gra = mix(mat, vec3(.35, .35, min(pow(ret.z, 4.0)*35.0, .35)), pow(ret.y, 9.0)*.7) * ret.y;
 					col += vec4(gra * alpha, alpha);
 				}
-				d += max(ret.x * .7, .1);
+				d += max(ret.x *2., .1);
 			}
 			if(col.w < .2)
-				col.xyz = vec3(0.1, .15, 0.05);
+				col.xyz = GetSky(rD); //vec3(0.1, .15, 0.05);
 			return col.xyz;
 		}
 
@@ -290,7 +239,7 @@
 		}
 
 		//--------------------------------------------------------------------------
-		vec3 TerrainColour(vec3 pos, vec3 dir,  vec3 normal, float dis, in vec2 camPlane,float type)
+		vec3 TerrainColour(vec3 pos, vec3 dir,  vec3 normal, float dis, in vec3 camSpaceP,float type)
 		{
 			vec3 mat;
 			if (type == 0.0)
@@ -300,7 +249,7 @@
 				// Random shadows...
 				float t = FractalNoise(pos.xz * .1)+.5;
 				// Do grass blade tracing...
-				mat = GrassBlades(pos, dir, mat, dis, normal, camPlane) * t;
+				mat = GrassBlades(pos, dir, mat, dis, normal, camSpaceP) * t;
 				DoLighting(mat, pos, normal,dir, dis);
 			}
 			mat = ApplyFog(mat, dis, dir);
@@ -326,41 +275,8 @@
     		return vec3 (0.125,0.1,0.2) + ( vec3 ( .6 , 0.9 , .4 ) * 3. * clamp ( length( pos ) - 0.94 , 0. , 1. ) );
 		}
 		
-		float calcSoftshadow( in vec3 ro, in vec3 rd );
+		
 
-		vec3 doLighting( in vec3 pos, in vec3 nor, in vec3 rd, in float dis, in vec3 mal )
-		{
-    		vec3 lin = vec3(0.0);
-
-    		// key light
-    		//-----------------------------
-    		vec3  view = normalize(-rd);
-    		vec3  lig1 = (vec3(100.0,70.7,90.9));
-    		vec3  lig2 = (vec3(100.0,90.9,90.9)*-1.);
-    
-    		float spc1 = gaussianSpecular(lig1, view, nor, 0.95)*0.5;
-    		float dif1 = max(0., orenNayarDiffuse(lig1, view, nor, -20.1, 1.0));
-    		float sha1 = 0.0; if( dif1>0.01 ) sha1=calcSoftshadow( pos+0.01*nor, lig1 );
-    		vec3  col1 = vec3(2.,4.2,4.);
-    		lin += col1*spc1+dif1*col1*sha1;
-    
-    		float spc2 = gaussianSpecular(lig2, view, nor, 0.95);
-    		float dif2 = max(0., orenNayarDiffuse(lig2, view, nor, -20.1, 1.0));
-    		float sha2 = 0.0; if( dif2>0.01 ) sha2=calcSoftshadow( pos+0.01*nor, lig2 );
-    		vec3  col2 = vec3(2.00,0.05,0.15);
-    		lin += col2*spc2+dif2*col2*sha1;
-
-    		// ambient light
-    		//-----------------------------
-    		lin += vec3(0.05);
-
-    
-    		// surface-light interacion
-    		//-----------------------------
-    		vec3 col = mal*lin;
-
-    		return col;
-		}
 		
 		//Calculate Ray Intersection in Screen Space
 		float calcIntersection( in vec3 rayOrigin, in vec3 rayDirection )
@@ -484,9 +400,9 @@
 		}
 
 		
-		vec3 render( in vec3 ro, in vec3 rd, in vec2 camPlane )
+		vec3 render( in vec3 ro, in vec3 rd, in vec3 camSpaceP )
 		{ 
-    		vec3 col = vec3(0.8, 0.9, 1.0);
+    		vec3 col = vec3(0.0, 0.0, 0.0);
     		vec3 grass;
     		vec2 res = castRay(ro,rd);
     		float t = res.x;
@@ -500,7 +416,7 @@
         		
         		vec3 ref = reflect( rd, nor );
         
-        		grass = TerrainColour(ro, rd, nor, distance, camPlane, type);
+        		grass = TerrainColour(ro, rd, nor, distance, camSpaceP, type);
         		
         		// material        
 				//col = 0.45 + 0.3*sin( vec3(0.05,0.08,0.10)*(m-1.0) );
@@ -542,7 +458,54 @@
 			return vec3( clamp(grass,0.0,1.0) );
 		}
 		
+		//--------------------------------------------------------------------------
+		// Home in on the surface by dividing by two and split...
+		float BinarySubdivision(in vec3 rO, in vec3 rD, float t, float oldT)
+		{
+			float halfwayT = 0.0;
+			for (int n = 0; n < 5; n++)
+			{
+				halfwayT = (oldT + t ) * .5;
+				if (map(rO + halfwayT*rD).x < .05)
+				{
+					t = halfwayT;
+				}else
+				{
+					oldT = halfwayT;
+				}
+			}
+			return t;
+		}
 		
+		
+		bool Scene(in vec3 rO, in vec3 rD, out float resT, out float type )
+		{
+		    float t = 5.;
+			float oldT = 0.0;
+			float delta = 0.;
+			vec2 h = vec2(1.0, 1.0);
+			bool hit = false;
+			for( int j=0; j < 70; j++ )
+			{
+			    vec3 p = rO + t*rD;
+				h = map(p); // ...Get this position's height mapping.
+
+				// Are we inside, and close enough to fudge a hit?...
+				if( h.x < 0.05)
+				{
+					hit = true;
+		            break;
+				}
+			        
+				delta = h.x + (t*0.03);
+				oldT = t;
+				t += delta;
+			}
+		    type = h.y;
+		    resT = BinarySubdivision(rO, rD, t, oldT);
+			return hit;
+		}
+				
 		
 		
 		//------------Vertex Shader-------------//
@@ -569,15 +532,21 @@
 			float lensDistance = gl_FragCoord.y * .5/tan(radians(60.0) * .5 );//60 is the FOV in Unity
 			
 			//Render
-			vec3 color = vec3(.3,.3,.3);
+
 			
 			vec4 rayOrigin = worldSpacePointPosition ;
 			vec3 camTarget = _WorldSpaceCameraPos;
-			mat3 ca = setCamera( rayOrigin.xyz, camTarget.xyz, .0 );
-			vec3 rayDirection = ca * normalize(vec3(camPlane.xy,-lensDistance) );//Flip Z Axis to project onto sphere
-			//vec3 surfaceNormal = calcNormal();
+			mat3 cameraMatrix = setCamera( camTarget.xyz,rayOrigin.xyz, .0 );
+			vec3 rayDirection = cameraMatrix * normalize(vec3(camPlane.xy,lensDistance) );//Flip Z Axis to project onto sphere
+			vec3 camSpaceP = cameraMatrix * (camTarget.xyz + rayDirection.xyz);
 			
-			vec3 col = render( rayOrigin.xyz, rayDirection.xyz, camPlane );
+			//vec3 surfaceNormal = calcNormal();
+			//camPlane = (cameraMatrix * (camTarget.xyz - rayOrigin.xyz)).xy;
+			//camPlane = (cross(cross( rayDirection.xyz, vec3(0.0,1.0,0.0)), rayDirection.xyz )).xy;
+			
+			vec3 col;
+
+			col = render( camTarget.xyz, rayDirection.xyz, camSpaceP );
 
 			col = pow( col, vec3(0.4545) );
 
@@ -588,5 +557,6 @@
 		
 		ENDGLSL
 		}
+		
 	} 	
 }
