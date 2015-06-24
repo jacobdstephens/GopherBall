@@ -324,7 +324,7 @@
 			
 			
  
-			p.xy = p.xy + vec2(atan(-_WorldSpaceCameraPos.z , -_WorldSpaceCameraPos.x )*-5.0, _WorldSpaceCameraPos.y).xy;
+			p.xy = p.xy + vec2(atan(_WorldSpaceCameraPos.z , _WorldSpaceCameraPos.x )*-5.0, normalize(_WorldSpaceCameraPos).y*-5.0).xy;
 			
 			//Pass Tangent Space Points into Voronoi function to create grass in perspective
 			vec2 ret = Voronoi((p.xy*2.5+sin(y*4.0+p.yx*12.3)*.12+vec2(sin(_Time[1]*1.3+1.5*p.y),sin(_Time[1]*2.6+1.5*p.x))*y*.5));
