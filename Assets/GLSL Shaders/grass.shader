@@ -316,7 +316,15 @@
 			float height = Noise(p.xz*2.0)*.75 + Noise(p.xz)*.35 + Noise(p.xz*.5)*.2;
 			float y = base;
 			
-			p.xy = p.xy + vec2 (_X, _Y);
+			//Todo Convert _X and _Y to elevation azmuth
+			
+			//camPos = p * XcameraMatrix ;
+			
+			vec3 normWorldCam =degrees(normalize(_WorldSpaceCameraPos) );
+			
+			
+ 
+			p.xy = p.xy + vec2(atan(-_WorldSpaceCameraPos.z , -_WorldSpaceCameraPos.x )*-5.0, _WorldSpaceCameraPos.y).xy;
 			
 			//Pass Tangent Space Points into Voronoi function to create grass in perspective
 			vec2 ret = Voronoi((p.xy*2.5+sin(y*4.0+p.yx*12.3)*.12+vec2(sin(_Time[1]*1.3+1.5*p.y),sin(_Time[1]*2.6+1.5*p.x))*y*.5));
