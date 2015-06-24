@@ -33,6 +33,7 @@
 		uniform mat4 UNITY_MATRIX_VP;
         uniform mat4 UNITY_MATRIX_P;
         
+        
         //UI Slider inputs from Shader
         uniform float _X;
         uniform float _Y;
@@ -250,15 +251,7 @@
     		return clamp( res, 0.0, 1.0 );
 
 		}
-		
-		mat3 calcLookAtMatrix( in vec3 ro, in vec3 ta, in float roll )
-		{
-    		vec3 ww = normalize( ta - ro );
-    		vec3 uu = normalize( cross(ww,vec3(sin(roll),cos(roll),0.0) ) );
-   	 		vec3 vv = normalize( cross(uu,ww));
-    		return mat3( uu, vv, ww );
-		}
-		
+		//Todo rename SetCamera to create Look At Matrix or something better
 		mat3 setCamera( in vec3 ro, in vec3 ta, float cr )
 		{
 			vec3 cw = normalize(ta-ro);
@@ -310,15 +303,22 @@
 		vec3 DE(in vec3 p, in vec3 normal, in vec3 camSpaceP)
 		{
 			vec3 plane =cross(cross( p, vec3(0.0,0.0,-1.0)), p )*1.0;
+			
+			//Convert to Tangent Space
+			mat3 XcameraMatrix = setCamera( vec3(0.0,1.0,.0) , _WorldSpaceCameraPos, 0.0);
+			//Create Awesome Swirl Pattern
+			//mat3 XcameraMatrix = setCamera( up , right, 0.0);
+			//p = XcameraMatrix * p; 
+			
+			p = p * XcameraMatrix ; 
+
 			float base = signedDistanceSphere ( p - vec3(_Xa,_Ya,_Za), 5.7 );			
-			float height = signedDistanceSphere ( p - vec3(0.0,0.0,0.0), 1.0 )*1.5;//Noise(p.xz*2.0)*.75 + Noise(p.xz)*.35 + Noise(p.xz*.5)*.2;
-			//p.y += height;
+			float height = Noise(p.xz*2.0)*.75 + Noise(p.xz)*.35 + Noise(p.xz*.5)*.2;
 			float y = base;
-			//y = y*y;
-
-			//TODO create vec2 that represents the camera plane
-			//need a vector aiming from the worldSpacePosition toward the camera
-
+			
+			p.xy = p.xy + vec2 (_X, _Y);
+			
+			//Pass Tangent Space Points into Voronoi function to create grass in perspective
 			vec2 ret = Voronoi((p.xy*2.5+sin(y*4.0+p.yx*12.3)*.12+vec2(sin(_Time[1]*1.3+1.5*p.y),sin(_Time[1]*2.6+1.5*p.x))*y*.5));
 
 			float f = ret.x * .6 + y * .58;
@@ -352,9 +352,13 @@
 			{
 				if (col.w > .99) break;
 				//p is the point of intersection on the grass plane
+				
 				vec3 p = rO + rD * d;
 				
-				vec3 ret = DE(p, normal, camSpaceP);
+				vec3 nor = calcNormal( p );
+				
+				//Todo need to pass in tangent and binormal for the RayDirection to get the Voronoi Plane to orient correctly
+				vec3 ret = DE(p, nor, camSpaceP);
 				ret.x += .5 * rCoC;
 
 				if (ret.x < rCoC)
@@ -514,8 +518,11 @@
             mat4 modelMatrix = _Object2World;
             
  			worldSpacePointPosition = modelMatrix * gl_Vertex;
+ 			//gl_ModelViewMatrixInverseTranspose;
+ 			//normalSpace = gl_NormalMatrix * gl_Vertex; 
  			cameraSpacePointPosition = gl_ModelViewProjectionMatrix * gl_Vertex;
 			gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
+			
 		}
 		
 		#endif
@@ -533,15 +540,17 @@
 			//Render
 
 			
-			vec4 rayOrigin = worldSpacePointPosition ;
+			vec3 rayOrigin = worldSpacePointPosition.xyz ;
 			vec3 camTarget = _WorldSpaceCameraPos;
 			mat3 cameraMatrix = setCamera( camTarget.xyz,rayOrigin.xyz, .0 );
 			
 			mat3 XcameraMatrix = setCamera( rayOrigin.xyz, vec3(.0,.0,.0),.0);
 			//UNITY_MATRIX_IT_MV
-			vec3 rayDirection = cameraMatrix * normalize(vec3(camPlane.xy,lensDistance) );//Flip Z Axis to project onto sphere
+			vec3 rayDirection = cameraMatrix * normalize(vec3(camPlane.xy,lensDistance) );
 			
-			float u = worldSpacePointPosition.x/lensDistance;
+			vec3 right = normalize(cross(rayDirection, vec3(0.0,1.0,0.0)));
+			vec3 up = normalize(cross(right, rayDirection));
+			//float rightLength = length(
 			float v = worldSpacePointPosition.y/lensDistance;
 			
 			vec3 camSpaceP =  XcameraMatrix * normalize(vec3(camPlane.xy,lensDistance) );//vec3(0.0,0.0,1.0);//opMat * normalize(vec3(camPlane.xy,lensDistance) );
@@ -550,7 +559,7 @@
 			
 			vec3 col;
 
-			col = render( camTarget.xyz, rayDirection.xyz, camSpaceP );
+			col = render( camTarget, rayDirection, vec3(camPlane.xy,0.0) );
 
 			col = pow( col, vec3(0.4545) );
 
