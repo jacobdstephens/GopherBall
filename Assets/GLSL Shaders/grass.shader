@@ -425,7 +425,7 @@
             mat4 modelMatrix = _Object2World;
             
  			worldSpacePointPosition = modelMatrix * gl_Vertex;
- 			positionDelta = worldSpacePointPosition+gl_Vertex;
+ 			positionDelta = worldSpacePointPosition-gl_Vertex;
 			gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
 			
 		}
