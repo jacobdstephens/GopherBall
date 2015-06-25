@@ -2,11 +2,7 @@
 {
 	Properties 
 	{
-		_Color ("Color", Color) = (1,1,1,1)
-		_X ("X", Range(-10,10)) = 0.0
-		_Y ("Y", Range(-10,10)) = 0.0
-		_Z ("Z", Range(-10,10)) = 0.0
-		
+
 		_Xa ("Xa", Range(-10,10)) = 0.0
 		_Ya ("Ya", Range(-10,10)) = 0.0
 		_Za ("Za", Range(-10,10)) = 0.0
@@ -28,10 +24,6 @@
 		#define MOD2 vec2(3.07965, 7.4235)
    
         //UI Slider inputs from Shader
-        
-        uniform float _X;
-        uniform float _Y;
-        uniform float _Z;
         
         uniform float _Xa;
         uniform float _Ya;
