@@ -470,12 +470,7 @@
 			mat3 cameraMatrix = setCamera( camTarget.xyz,rayOrigin.xyz, .0 );
 			vec3 rayDirection = cameraMatrix * normalize(vec3(camPlane.xy,lensDistance) );
 						
-			vec3 cw = normalize(_WorldSpaceCameraPos);
-			//vec3 cp = vec3(sin(roll), cos(roll),0.0);
-			vec3 cu = cross(camTarget,rayOrigin);
-			vec3 cv = cross(cu,camTarget);
-			vec3 dir = normalize(camPlane.x*cu + camPlane.y*cv + 1.3*cw);
-			mat3 camMat = mat3(cu, cv, cw);
+
 			
 			
 			vec4 col;
