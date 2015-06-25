@@ -444,10 +444,8 @@
 			vec2 camPlane = -1.0 + 2.0 * gl_FragCoord.xy / _ScreenParams.xy;
 			camPlane.x *= _ScreenParams.x/_ScreenParams.y;
 			vec2 xy = gl_FragCoord.xy / _ScreenParams.xy;
-			
 
-			
-			float lensDistance = gl_FragCoord.y * .5/tan(radians(.5) * .5 );//60 is the FOV in Unity
+			float lensDistance = gl_FragCoord.y * .5/tan(radians(.5) * .5 );
 			
 			//Prep vectors for rendering
 
