@@ -2,14 +2,9 @@
 {
 	Properties 
 	{
-
-		_Xa ("Xa", Range(-10,10)) = 0.0
-		_Ya ("Ya", Range(-10,10)) = 0.0
-		_Za ("Za", Range(-10,10)) = 0.0
-		
 		_GrassPosX ("Grass_Position_X", Range(-100,100)) = 0.0
-		_GrassPosY ("Grass_Position_X", Range(-100,100)) = 0.0
-		_GrassPosZ ("Grass_Position_X", Range(-100,100)) = 0.0
+		_GrassPosY ("Grass_Position_Y", Range(-100,100)) = 0.0
+		_GrassPosZ ("Grass_Position_Z", Range(-100,100)) = 0.0
 		_GrassBall ("Grass_Ball", Range(0,10)) = 7.25
 		
 		_RayDepth ("Ray_Depth", Range(0,100)) = 80
@@ -129,6 +124,7 @@
 		float doModel ( in vec3 position )
 		{
 			vec3 spherePositionOffset = vec3 ( _GrassPosX , _GrassPosY, _GrassPosZ ) * 1.;
+			//spherePositionOffset = positionDelta.xyz;
 			float result = signedDistanceSphere ( position - spherePositionOffset.xyz, _GrassBall );
 	        return result;
 		}
@@ -258,7 +254,7 @@
 			p = p * XcameraMatrix ;
 			 
 			//Set distance to bottom of grass
-			float y = signedDistanceSphere ( p - vec3(_Xa,_Ya,_Za), 5.5 );
+			float y = signedDistanceSphere ( p - vec3 ( _GrassPosX , _GrassPosY, _GrassPosZ ), 5.5 );
 			//y = y*y;
 			//Convert _X and _Y to elevation azmuth. Todo Fix popping when atan flips
 
