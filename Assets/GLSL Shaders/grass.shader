@@ -479,7 +479,7 @@
 			
 			
 			vec4 col;
-			vec3 colA;
+
 			float distance;
 			float type;
 			if( !Scene(camTarget, rayDirection, distance, type) )
@@ -492,8 +492,6 @@
 				col = render( camTarget, rayDirection, vec3(camPlane.xy,0.0) );
 			
 			}
-
-			//col += colA;
 
 			col.xyz = PostEffects(col.xyz, xy);	
 			
