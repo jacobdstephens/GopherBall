@@ -51,15 +51,7 @@
 
 		// Noise functions
 		//--------------------------------------------------------------------------
-		float Hash( float p )
-		{
-			vec2 p2 = fract(vec2(p) / MOD2);
-		    p2 += dot(p2.yx, p2.xy+19.19);
-			return fract(p2.x * p2.y);
-		}
-
-		//--------------------------------------------------------------------------
-		float Hash(vec2 p)
+		float hash(vec2 p)
 		{
 			p  = fract(p / MOD2);
 		    p += dot(p.xy, p.yx+19.19);
@@ -68,18 +60,18 @@
 
 
 		//--------------------------------------------------------------------------
-		float Noise( in vec2 x )
+		float noise( in vec2 x )
 		{
 		    vec2 p = floor(x);
 		    vec2 f = fract(x);
 		    f = f*f*(3.0-2.0*f);
 		    float n = p.x + p.y*57.0;
-		    float res = mix(mix( Hash(n+  0.0), Hash(n+  1.0),f.x),
-		                    mix( Hash(n+ 57.0), Hash(n+ 58.0),f.x),f.y);
+		    float res = mix(mix( hash(vec2(n+  0.0,0.0)), hash(vec2(n+  1.0, 0.0)),f.x),
+		                    mix( hash(vec2(n+ 57.0,0.0)), hash(vec2(n+ 58.0, 0.0)),f.x),f.y);
 		    return res;
 		}
 
-		vec2 Voronoi( in vec2 x )
+		vec2 voronoi( in vec2 x )
 		{
 			vec2 p = floor( x );
 			vec2 f = fract( x );
@@ -88,25 +80,25 @@
 			for( int i=-1; i<=1; i++ )
 			{
 				vec2 b = vec2( float(i), float(j) );
-				vec2 r = vec2( b ) - f  + Hash( p + b );
+				vec2 r = vec2( b ) - f  + hash( p + b );
 				float d = dot(r,r);
 				if( d < res )
 				{
 					res = d;
-					id  = Hash(p+b);
+					id  = hash(p+b);
 				}			
 		    }
 			return vec2(max(.4-sqrt(res), 0.01),id);
 		}
 
-		float FractalNoise(in vec2 xy)
+		float fractalNoise(in vec2 xy)
 		{
 			float w = .7;
 			float f = 0.0;
 
 			for (int i = 0; i < 3; i++)
 			{
-				f += Noise(xy) * w;
+				f += noise(xy) * w;
 				w = w*0.6;
 				xy = 2.0 * xy;
 			}
@@ -134,7 +126,6 @@
 		float doModel ( in vec3 position )
 		{
 			vec3 spherePositionOffset = vec3 ( _GrassPosX , _GrassPosY, _GrassPosZ ) * 1.;
-			//float scale = 7.25;
 			float result = signedDistanceSphere ( position - spherePositionOffset.xyz, _GrassBall );
 	        return result;
 		}
@@ -211,8 +202,8 @@
 
 		}
 		
-		//Todo rename SetCamera to create Look At Matrix or something better
-		mat3 setCamera( in vec3 ro, in vec3 ta, float cr )
+		
+		mat3 lookAtMatrix( in vec3 ro, in vec3 ta, float cr )
 		{
 			vec3 cw = normalize(ta-ro);
 			vec3 cp = vec3(sin(cr), cos(cr),0.0);
@@ -240,7 +231,7 @@
 
 		//--------------------------------------------------------------------------
 		// Grab all sky information for a given ray from camera
-		vec3 GetSky(in vec3 rd)
+		vec3 getSky(in vec3 rd)
 		{
 			float sunAmount = max( dot( rd, sunLight), 0.0 );
 			float v = pow(1.0-max(rd.y,0.0),6.);
@@ -253,17 +244,17 @@
 
 		//--------------------------------------------------------------------------
 		// Merge grass into the sky background for correct fog colouring...
-		vec3 ApplyFog( in vec3  rgb, in float dis, in vec3 dir)
+		vec3 applyFog( in vec3  rgb, in float dis, in vec3 dir)
 		{
 			float fogAmount = clamp(dis*dis* 0.0000012, 0.0, 1.0);
-			return mix( rgb, GetSky(dir), fogAmount );
+			return mix( rgb, getSky(dir), fogAmount );
 		}
 
 		//--------------------------------------------------------------------------
-		vec3 DE(in vec3 p, in vec3 normal, in vec3 camSpaceP)
+		vec3 computeVoronoi(in vec3 p, in vec3 normal, in vec3 camSpaceP)
 		{
 			//Convert to Tangent Space
-			mat3 XcameraMatrix = setCamera( vec3(0.0,1.0,.0) , _WorldSpaceCameraPos, 0.0);
+			mat3 XcameraMatrix = lookAtMatrix( vec3(0.0,1.0,.0) , _WorldSpaceCameraPos, 0.0);
 			p = p * XcameraMatrix ;
 			 
 			//Set distance to bottom of grass
@@ -273,8 +264,8 @@
 
 			p.xy = p.xy + vec2(atan(_WorldSpaceCameraPos.z , _WorldSpaceCameraPos.x )*5.0, normalize(_WorldSpaceCameraPos).y*5.0).xy;
 			//Pass Tangent Space Points into Voronoi function to create grass in perspective
-			//vec2 ret = Voronoi(p.xy);
-			vec2 ret = Voronoi((p.xy*2.5+sin(y*4.0+p.yx*12.3)*.12+vec2(sin(_Time[1]*1.3+1.5*p.y),sin(_Time[1]*2.6+1.5*p.x))*y*.5));
+			//vec2 ret = voronoi(p.xy);
+			vec2 ret = voronoi((p.xy*2.5+sin(y*4.0+p.yx*12.3)*.12+vec2(sin(_Time[1]*1.3+1.5*p.y),sin(_Time[1]*2.6+1.5*p.x))*y*.5));
 
 			float f = ret.x * .6 + y * .58;
 			return vec3( y - f*1.4, clamp(f * 1.5, 0.0, 1.0), ret.y);
@@ -282,23 +273,23 @@
 
 		//--------------------------------------------------------------------------
 		// eiffie's code for calculating the aperture size for a given distance...
-		float CircleOfConfusion(float t)
+		float circleOfConfusion(float t)
 		{
 			return max(t * .04, (2.0 / _ScreenParams.y) * (1.0+t));
 		}
 
 		//--------------------------------------------------------------------------
-		float Linstep(float a, float b, float t)
+		float linstep(float a, float b, float t)
 		{
 			return clamp((t-a)/(b-a),0.,1.);
 		}
 
 		//--------------------------------------------------------------------------
-		vec4 GrassBlades(in vec3 rO, in vec3 rD, in vec3 mat, in float dist , in vec3 normal, in vec3 camSpaceP)
+		vec4 grassBlades(in vec3 rO, in vec3 rD, in vec3 mat, in float dist , in vec3 normal, in vec3 camSpaceP)
 		{
 			float d = 0.0;
 			// Only calculate cCoC once is enough here...
-			float rCoC = CircleOfConfusion(dist*.3);
+			float rCoC = circleOfConfusion(dist*.3);
 			float alpha = 0.0;
 			
 			vec4 col = vec4(mat*0.15, 0.0);
@@ -313,12 +304,12 @@
 				vec3 nor = calcNormal( p );
 				
 				//Todo need to pass in tangent and binormal for the RayDirection to get the Voronoi Plane to orient correctly
-				vec3 ret = DE(p, nor, camSpaceP);
+				vec3 ret = computeVoronoi(p, nor, camSpaceP);
 				ret.x += .5 * rCoC;
 
 				if (ret.x < rCoC)
 				{
-					alpha = (1.0 - col.y) * Linstep(-rCoC, rCoC, -ret.x);//calculate the mix like cloud density
+					alpha = (1.0 - col.y) * linstep(-rCoC, rCoC, -ret.x);//calculate the mix like cloud density
 					// Mix material with white tips for grass...
 					vec3 gra = mix(mat, vec3(.35, .35, min(pow(ret.z, 4.0)*35.0, .35)), pow(ret.y, 9.0)*.7) * ret.y;
 					col += vec4(gra * alpha, alpha);
@@ -326,14 +317,14 @@
 				d += max(ret.x *2., .01);
 			}
 			if(col.w < .2)
-				col = vec4(GetSky(rD), 0.0);
+				col = vec4(getSky(rD), 0.0);
 				
 			return col;
 		}
 
 		//--------------------------------------------------------------------------
 		// Calculate sun light...
-		void DoLighting(inout vec3 mat, in vec3 pos, in vec3 normal, in vec3 eyeDir, in float dis)
+		void doLighting(inout vec3 mat, in vec3 pos, in vec3 normal, in vec3 eyeDir, in float dis)
 		{
 			float h = dot(sunLight,normal);
 			mat = mat * sunColour*(max(h, 0.0)+.2);
@@ -355,11 +346,11 @@
         		vec3 pos = ro + t*rd;
         		vec3 nor = calcNormal( pos );
         		vec3 ref = reflect( rd, nor );
-        		col.xyz = mix(vec3(.0,.3,.0), vec3(.2,.3,.0), Noise(pos.xz*.025));
+        		col.xyz = mix(vec3(.0,.3,.0), vec3(.2,.3,.0), noise(pos.xz*.025));
         		
-        		col = GrassBlades(ro, rd, col.xyz, distance, nor, camSpaceP);
-        		DoLighting(col.xyz, pos, nor,rd, distance);
-        		col.xyz = ApplyFog(col.xyz, distance, rd);
+        		col = grassBlades(ro, rd, col.xyz, distance, nor, camSpaceP);
+        		doLighting(col.xyz, pos, nor,rd, distance);
+        		col.xyz = applyFog(col.xyz, distance, rd);
         		    
     		}
 
@@ -368,7 +359,7 @@
 		
 		//--------------------------------------------------------------------------
 		// Home in on the surface by dividing by two and split...
-		float BinarySubdivision(in vec3 rO, in vec3 rD, float t, float oldT)
+		float binarySubdivision(in vec3 rO, in vec3 rD, float t, float oldT)
 		{
 			float halfwayT = 0.0;
 			for (int n = 0; n < 5; n++)
@@ -411,11 +402,11 @@
 				t += delta;
 			}
 		    type = h.y;
-		    resT = BinarySubdivision(rO, rD, t, oldT);
+		    resT = binarySubdivision(rO, rD, t, oldT);
 			return hit;
 		}
 		
-		vec3 PostEffects(vec3 rgb, vec2 xy)
+		vec3 postEffects(vec3 rgb, vec2 xy)
 		{
 			// Gamma first...
 			rgb = pow(rgb, vec3(0.45));
@@ -464,7 +455,7 @@
 
 			vec3 rayOrigin = worldSpacePointPosition.xyz ;
 			vec3 camTarget = _WorldSpaceCameraPos;
-			mat3 cameraMatrix = setCamera( camTarget.xyz,rayOrigin.xyz, .0 );
+			mat3 cameraMatrix = lookAtMatrix( camTarget.xyz,rayOrigin.xyz, .0 );
 			vec3 rayDirection = cameraMatrix * normalize(vec3(camPlane.xy,lensDistance) );
 						
 
@@ -477,7 +468,7 @@
 			if( !Scene(camTarget, rayDirection, distance, type) )
 			{
 				// Missed scene, now just get the sky...
-				col = vec4(GetSky(rayDirection), 1.0);
+				col = vec4(getSky(rayDirection), 1.0);
 			}
 				else
 			{
@@ -485,7 +476,7 @@
 			
 			}
 
-			col.xyz = PostEffects(col.xyz, xy);	
+			col.xyz = postEffects(col.xyz, xy);	
 			
 			gl_FragColor = col;
 		
