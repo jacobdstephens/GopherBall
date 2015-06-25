@@ -1,6 +1,6 @@
 # GopherBall
 
-Screen Space Sphereical Shader 
+###Screen Space Sphereical Shader 
 
 Gopher Ball is a visual experiment to integrate Shader Toy Screen Space techniques into Unity3D. 
 
