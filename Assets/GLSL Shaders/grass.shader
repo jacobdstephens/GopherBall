@@ -7,6 +7,7 @@
 		_Ya ("Ya", Range(-10,10)) = 0.0
 		_Za ("Za", Range(-10,10)) = 0.0
 		_GrassBall ("Grass_Ball", Range(0,10)) = 7.25
+		_FOV ("Focal_Length", Range(0,100)) = 60
 	}
 	SubShader 
 	{
@@ -30,6 +31,7 @@
         uniform float _Za;
         
         uniform float _GrassBall;
+        uniform float _FOV;
 
 		//Position vectors for world splace computation
         varying vec4 worldSpacePointPosition;
@@ -453,7 +455,7 @@
 			
 
 			
-			float lensDistance = gl_FragCoord.y * .5/tan(radians(60.0) * .5 );//60 is the FOV in Unity
+			float lensDistance = gl_FragCoord.y * .5/tan(radians(_FOV) * .5 );//60 is the FOV in Unity
 			
 			//Render
 
