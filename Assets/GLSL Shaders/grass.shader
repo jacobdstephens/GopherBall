@@ -6,7 +6,13 @@
 		_Xa ("Xa", Range(-10,10)) = 0.0
 		_Ya ("Ya", Range(-10,10)) = 0.0
 		_Za ("Za", Range(-10,10)) = 0.0
+		
+		_GrassPosX ("Grass_Position_X", Range(-100,100)) = 0.0
+		_GrassPosY ("Grass_Position_X", Range(-100,100)) = 0.0
+		_GrassPosZ ("Grass_Position_X", Range(-100,100)) = 0.0
 		_GrassBall ("Grass_Ball", Range(0,10)) = 7.25
+		
+		_RayDepth ("Ray_Depth", Range(0,100)) = 80
 	}
 	SubShader 
 	{
@@ -14,9 +20,7 @@
 		Pass 
 		{
 		GLSLPROGRAM
-		
-		
-		
+
 		//----------Script Set up-----------//
 		
 		#include "UnityCG.glslinc" 
@@ -29,16 +33,18 @@
         uniform float _Ya;
         uniform float _Za;
         
+        uniform float _GrassPosX;
+        uniform float _GrassPosY;
+        uniform float _GrassPosZ;
+        
         uniform float _GrassBall;
+        uniform float _RayDepth;
 
 		//Position vectors for world splace computation
         varying vec4 worldSpacePointPosition;
-        varying vec4 cameraSpacePointPosition;
-        varying vec4 tempCol;
 
 		//Constants and Defaults
 		vec3 sunLight  = normalize(_WorldSpaceLightPos0.xyz);
-		vec3 cameraPos;
 		vec3 sunColour = vec3(1.0, .75, .6);
 		const mat2 rotate2D = mat2(1.932, 1.623, -1.623, 1.952);
 		float gTime = 0.0;
@@ -127,8 +133,7 @@
 		//Build Model in Screen Space
 		float doModel ( in vec3 position )
 		{
-			//Todo hook up values to UI
-			vec3 spherePositionOffset = vec3 (  0.0 , 0.0, 0.0 ) * 1.;
+			vec3 spherePositionOffset = vec3 ( _GrassPosX , _GrassPosY, _GrassPosZ ) * 1.;
 			//float scale = 7.25;
 			float result = signedDistanceSphere ( position - spherePositionOffset.xyz, _GrassBall );
 	        return result;
@@ -139,7 +144,7 @@
 		vec2 castRay( in vec3 ro, in vec3 rd )
 		{
     		float tmin = 1.0;
-    		float tmax = 80.0;//Todo add control for distance
+    		float tmax = _RayDepth;
     
 			#if 0
    			float tp1 = (0.0-ro.y)/rd.y; if( tp1>0.0 ) tmax = min( tmax, tp1 );
